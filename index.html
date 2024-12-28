@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Финансовый интерфейс с сохранением</title>
+  <style>
+    @font-face {
+      font-family: 'Ramona Bold';
+      src: url('/static/RamonaBold.ttf') format('ttf');
+      font-weight: normal;
+      font-style: normal;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Ramona Bold', sans-serif;
+    }
+
+    body {
+      background: #2b2b2b;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .container {
+      display: flex;
+      flex: 1;
+      padding: 20px;
+      gap: 20px;
+    }
+
+    .left-panel {
+      background: #3a3a3a;
+      padding: 20px;
+      border-radius: 8px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      max-width: 400px;
+    }
+
+    .inputs {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .inputs label {
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+
+    .inputs input {
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .buttons button {
+      background: #4caf50;
+      border: none;
+      border-radius: 4px;
+      padding: 10px 20px;
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .buttons button:hover {
+      background: #45a049;
+    }
+
+    .stats {
+      margin-top: auto;
+      margin-bottom: 10px;
+    }
+
+    .stats p {
+      margin: 5px 0;
+    }
+
+    .right-panel {
+      background: #3a3a3a;
+      padding: 20px;
+      border-radius: 8px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .items {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      max-height: 80vh;
+    }
+
+    .item {
+      display: flex;
+      flex-direction: column;
+      background: #4a4a4a;
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 14px;
+      line-height: 1.4;
+      position: relative;
+    }
+
+    .item.negative {
+      border-left: 4px solid red;
+    }
+
+    .item.positive {
+      border-left: 4px solid #3AB36C;
+    }
+
+    .item .time {
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #ccc;
+    }
+
+    .item .amount {
+      font-weight: 700;
+      margin-bottom: 2px;
+      cursor: pointer;
+    }
+
+    .item .comment {
+      font-style: italic;
+      color: #dfdfdf;
+      cursor: pointer;
+    }
+
+    .edit-input {
+      width: 100%;
+      font-size: 14px;
+      padding: 4px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+
+    @media (max-width: 800px) {
+      .container {
+        flex-direction: column;
+      }
+
+      .left-panel,
+      .right-panel {
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="left-panel">
+      <div class="inputs">
+        <label for="sum-input">Сумма</label>
+        <input id="sum-input" type="number" placeholder="Введите сумму" />
+        <label for="comment-input">Комментарий</label>
+        <input id="comment-input" type="text" placeholder="Введите комментарий" />
+      </div>
+      <div class="buttons">
+        <button id="save-btn">СОХРАНИТЬ</button>
+        <button id="new-series-btn">Новая серия</button>
+        <button id="clear-btn">Очистить</button>
+      </div>
+      <div class="stats">
+        <p>Заработок за серию: <span id="session-income">0$</span></p>
+        <p>Заработано всего: <span id="total-income">0$</span></p>
+      </div>
+    </div>
+    <div class="right-panel">
+      <div class="items" id="items-list"></div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'financialData';
+    let itemsData = [];
+
+    const sumInput = document.getElementById('sum-input');
+    const commentInput = document.getElementById('comment-input');
+    const saveBtn = document.getElementById('save-btn');
+    const newSeriesBtn = document.getElementById('new-series-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const itemsList = document.getElementById('items-list');
+    const sessionIncomeEl = document.getElementById('session-income');
+    const totalIncomeEl = document.getElementById('total-income');
+
+    loadDataFromLocalStorage();
+    renderItemsList();
+    updateAllSums();
+
+    function saveDataToLocalStorage() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(itemsData));
+    }
+
+    function loadDataFromLocalStorage() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      itemsData = raw ? JSON.parse(raw) : [];
+    }
+
+    function renderItemsList() {
+      itemsList.innerHTML = '';
+      itemsData.forEach(item => {
+        const el = createItemElement(item.sum, item.comment, item.time);
+        itemsList.appendChild(el);
+      });
+    }
+
+    function createItemElement(sumValue, commentValue, timeValue) {
+      const wrap = document.createElement('div');
+      wrap.classList.add('item');
+      if (parseFloat(sumValue) < 0) {
+        wrap.classList.add('negative');
+      } else {
+        wrap.classList.add('positive');
+      }
+      const timeEl = document.createElement('span');
+      timeEl.classList.add('time');
+      timeEl.textContent = timeValue;
+
+      const amountEl = document.createElement('span');
+      amountEl.classList.add('amount');
+      amountEl.textContent = sumValue;
+
+      const commentEl = document.createElement('span');
+      commentEl.classList.add('comment');
+      commentEl.textContent = commentValue;
+
+      wrap.appendChild(timeEl);
+      wrap.appendChild(amountEl);
+      wrap.appendChild(commentEl);
+
+      return wrap;
+    }
+
+    function getTotalSum() {
+      return itemsData.reduce((acc, cur) => acc + (parseFloat(cur.sum) || 0), 0);
+    }
+
+    function getSessionSum() {
+      let lastIndex = itemsData.map(i => i.comment).lastIndexOf('Новая история');
+      if (lastIndex === -1) lastIndex = 0;
+      else lastIndex++;
+      let sum = 0;
+      for (let i = lastIndex; i < itemsData.length; i++) {
+        sum += parseFloat(itemsData[i].sum) || 0;
+      }
+      return sum;
+    }
+
+    function updateAllSums() {
+      sessionIncomeEl.textContent = formatNumber(getSessionSum()) + '$';
+      totalIncomeEl.textContent = formatNumber(getTotalSum()) + '$';
+    }
+
+    function formatNumber(value) {
+      const parts = Math.round(value).toString().split('');
+      let result = '';
+      let counter = 0;
+      for (let i = parts.length - 1; i >= 0; i--) {
+        counter++;
+        result = parts[i] + result;
+        if (counter % 3 === 0 && i > 0) {
+          result = '.' + result;
+        }
+      }
+      return result;
+    }
+
+    saveBtn.addEventListener('click', () => {
+      const sumValue = sumInput.value.trim();
+      if (!sumValue) return;
+      const commentValue = commentInput.value.trim() || 'Без комментария';
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      const s = String(now.getSeconds()).padStart(2, '0');
+      const timeString = `${h}:${m}:${s}`;
+      itemsData.unshift({ sum: sumValue, comment: commentValue, time: timeString });
+      saveDataToLocalStorage();
+      renderItemsList();
+      updateAllSums();
+      sumInput.value = '';
+      commentInput.value = '';
+    });
+
+    newSeriesBtn.addEventListener('click', () => {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      const s = String(now.getSeconds()).padStart(2, '0');
+      const timeString = `${h}:${m}:${s}`;
+      itemsData.unshift({ sum: '0', comment: 'Новая история', time: timeString });
+      saveDataToLocalStorage();
+      renderItemsList();
+      updateAllSums();
+
+      // Обнуляем заработок за серию
+      sessionIncomeEl.textContent = '0$';
+    });
+
+    clearBtn.addEventListener('click', () => {
+      itemsData = [];
+      saveDataToLocalStorage();
+      renderItemsList();
+      updateAllSums();
+    });
+
+    itemsList.addEventListener('click', (e) => {
+      if (e.target.classList.contains('amount')) {
+        editField(e.target, true);
+      } else if (e.target.classList.contains('comment')) {
+        editField(e.target, false);
+      }
+    });
+
+    function editField(el, isAmount) {
+      const oldValue = el.textContent;
+      const parentItem = el.closest('.item');
+      const timeEl = parentItem.querySelector('.time');
+      const commentEl = parentItem.querySelector('.comment');
+      const amountEl = parentItem.querySelector('.amount');
+      const index = itemsData.findIndex(i =>
+        i.time === timeEl.textContent &&
+        i.comment === commentEl.textContent &&
+        String(i.sum) === amountEl.textContent
+      );
+      if (index === -1) return;
+
+      const input = document.createElement('input');
+      input.type = isAmount ? 'number' : 'text';
+      input.classList.add('edit-input');
+      input.value = oldValue;
+      el.replaceWith(input);
+      input.focus();
+
+      const finishEdit = () => {
+        const newValue = input.value.trim();
+        if (isAmount) {
+          itemsData[index].sum = newValue || '0';
+          parentItem.classList.remove('negative', 'positive');
+          if (parseFloat(newValue) < 0) {
+            parentItem.classList.add('negative');
+          } else {
+            parentItem.classList.add('positive');
+          }
+        } else {
+          itemsData[index].comment = newValue || 'Без комментария';
+        }
+        const span = document.createElement('span');
+        span.textContent = newValue || (isAmount ? '0' : 'Без комментария');
+        span.classList.add(isAmount ? 'amount' : 'comment');
+        input.replaceWith(span);
+        saveDataToLocalStorage();
+        renderItemsList();
+        updateAllSums();
+      };
+
+      input.addEventListener('blur', finishEdit);
+      input.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          input.blur();
+        }
+      });
+    }
+  </script>
+</body>
+
+</html>
